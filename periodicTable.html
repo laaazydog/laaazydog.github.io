@@ -1,0 +1,1506 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>인터랙티브 주기율표</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 2rem 1rem;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 2rem;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 0.5rem;
+            font-weight: 700;
+        }
+
+        .header p {
+            font-size: 1rem;
+            opacity: 0.9;
+        }
+
+        .controls {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 12px;
+            margin-bottom: 1.5rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .search-box {
+            width: 100%;
+            padding: 0.75rem 1rem;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: border-color 0.3s;
+        }
+
+        .search-box:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .controls-section {
+            margin-top: 1.5rem;
+        }
+
+        .section-title {
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .filter-buttons {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+            gap: 0.75rem;
+            margin-bottom: 1rem;
+        }
+
+        /*
+         * 필터 버튼
+         * --cat-color : 분류별 대표 색상 (JS에서 주입)
+         * 기본 상태 = 흰 배경 + 분류색 글씨 / 활성 상태 = 분류색 배경 + 흰 글씨
+         * opacity는 어떤 상태에서도 1로 유지하여 해제 후 잔상이 남지 않도록 함
+         */
+        .filter-btn {
+            padding: 0.6rem 0.8rem;
+            border: 2px solid var(--cat-color, #999);
+            border-radius: 6px;
+            background-color: #ffffff;
+            color: var(--cat-color, #333);
+            cursor: pointer;
+            font-size: 0.85rem;
+            font-weight: 600;
+            opacity: 1;
+            transition: background-color 0.2s, color 0.2s, box-shadow 0.2s, transform 0.2s;
+            position: relative;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .filter-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12);
+        }
+
+        .filter-btn:focus-visible {
+            outline: 3px solid rgba(102, 126, 234, 0.5);
+            outline-offset: 2px;
+        }
+
+        /* 활성 상태: 분류색 배경 + 흰 글씨 (텍스트 대비 확보) */
+        .filter-btn.active {
+            background-color: var(--cat-color, #667eea);
+            color: #ffffff;
+            font-weight: 700;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        }
+
+        /* 활성 상태에서 hover 시에도 글씨가 사라지지 않도록 색상 고정 */
+        .filter-btn.active:hover {
+            background-color: var(--cat-color, #667eea);
+            color: #ffffff;
+        }
+
+        /* 검색 영역 */
+        .search-wrapper {
+            position: relative;
+        }
+
+        .search-clear-btn {
+            position: absolute;
+            right: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: #e0e0e0;
+            border: none;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            line-height: 1;
+            font-size: 0.8rem;
+            color: #555;
+            cursor: pointer;
+            display: none;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .search-clear-btn.visible {
+            display: flex;
+        }
+
+        .search-clear-btn:hover {
+            background: #ccc;
+        }
+
+        /* 실시간 자동완성 드롭다운 */
+        .suggestions {
+            position: absolute;
+            top: calc(100% + 4px);
+            left: 0;
+            right: 0;
+            background: #ffffff;
+            border: 2px solid #667eea;
+            border-radius: 8px;
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
+            max-height: 300px;
+            overflow-y: auto;
+            z-index: 100;
+            display: none;
+        }
+
+        .suggestions.open {
+            display: block;
+        }
+
+        .suggestion-item {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.6rem 0.9rem;
+            cursor: pointer;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .suggestion-item:last-child {
+            border-bottom: none;
+        }
+
+        .suggestion-item:hover,
+        .suggestion-item.highlighted {
+            background: #eef1ff;
+        }
+
+        .suggestion-badge {
+            min-width: 34px;
+            height: 34px;
+            border-radius: 6px;
+            border: 2px solid;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 0.9rem;
+        }
+
+        .suggestion-text {
+            display: flex;
+            flex-direction: column;
+            line-height: 1.3;
+        }
+
+        .suggestion-name {
+            font-size: 0.95rem;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .suggestion-meta {
+            font-size: 0.75rem;
+            color: #888;
+        }
+
+        .suggestion-empty {
+            padding: 0.9rem;
+            color: #888;
+            font-size: 0.9rem;
+            text-align: center;
+        }
+
+        .search-hint {
+            margin-top: 0.5rem;
+            font-size: 0.75rem;
+            color: #888;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 0.75rem;
+            flex-wrap: wrap;
+        }
+
+        .action-btn {
+            padding: 0.75rem 1.25rem;
+            border: none;
+            border-radius: 6px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            font-size: 0.9rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .action-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+
+        .action-btn:active {
+            transform: translateY(0);
+        }
+
+        .legend {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 1rem;
+            margin-top: 1rem;
+            padding-top: 1rem;
+            border-top: 1px solid #e0e0e0;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.85rem;
+            color: #555;
+        }
+
+        .legend-color {
+            width: 20px;
+            height: 20px;
+            border-radius: 4px;
+            border: 2px solid;
+        }
+
+        .periodic-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(65px, 1fr));
+            gap: 10px;
+            margin-bottom: 2rem;
+        }
+
+        .element {
+            aspect-ratio: 1;
+            padding: 0.5rem;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: transform 0.25s ease, box-shadow 0.25s ease,
+                        opacity 0.25s ease, filter 0.25s ease, border-color 0.25s ease;
+            border: 2px solid;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            font-weight: 600;
+            position: relative;
+            overflow: visible;   /* 선택 배지가 잘리지 않도록 */
+        }
+
+        .element:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 8px 12px rgba(0, 0, 0, 0.15);
+        }
+
+        /* ── 선택된 원소 강조 ───────────────────────────────
+           1) 분류색 굵은 링   2) 확대 + 부양 그림자
+           3) 우상단 체크 배지 4) 선택 순간 펄스 애니메이션
+           색상에만 의존하지 않도록 형태·크기·배지를 함께 사용 */
+        .element.selected {
+            transform: scale(1.18) translateY(-2px);
+            z-index: 10;
+            border-color: var(--el-color, #333);
+            box-shadow:
+                0 0 0 4px #ffffff,
+                0 0 0 7px var(--el-color, #333),
+                0 12px 28px rgba(0, 0, 0, 0.32);
+            animation: selectedPop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+
+        .element.selected:hover {
+            transform: scale(1.18) translateY(-2px);
+        }
+
+        /* 선택 표시 배지 (체크) */
+        .element.selected::after {
+            content: '✓';
+            position: absolute;
+            top: -9px;
+            right: -9px;
+            width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            background: var(--el-color, #333);
+            color: #ffffff;
+            font-size: 0.75rem;
+            font-weight: 700;
+            line-height: 22px;
+            text-align: center;
+            border: 2px solid #ffffff;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+        }
+
+        @keyframes selectedPop {
+            0%   { transform: scale(1) translateY(0); }
+            55%  { transform: scale(1.30) translateY(-4px); }
+            100% { transform: scale(1.18) translateY(-2px); }
+        }
+
+        /* 선택 상태에서는 나머지 원소를 뒤로 물려 대비를 키움 */
+        .periodic-grid.has-selection .element:not(.selected) {
+            opacity: 0.32;
+            filter: grayscale(0.65);
+            transform: scale(0.93);
+        }
+
+        /* 단, 마우스를 올리면 다시 또렷하게 (탐색 방해 방지) */
+        .periodic-grid.has-selection .element:not(.selected):hover {
+            opacity: 1;
+            filter: none;
+            transform: translateY(-4px) scale(1);
+        }
+
+        .element-number {
+            font-size: 0.65rem;
+            opacity: 0.7;
+            position: absolute;
+            top: 2px;
+            left: 3px;
+        }
+
+        .element-symbol {
+            font-size: 1.4rem;
+            font-weight: 700;
+        }
+
+        .element-name {
+            font-size: 0.55rem;
+            opacity: 0.8;
+            margin-top: 2px;
+        }
+
+        /* Category colors */
+        .alkali {
+            background: #FFE5E5;
+            border-color: #FF6B6B;
+            color: #8B0000;
+        }
+
+        .alkaline {
+            background: #FFE5CC;
+            border-color: #FF9500;
+            color: #8B4513;
+        }
+
+        .transition {
+            background: #E5F0FF;
+            border-color: #3366FF;
+            color: #001A66;
+        }
+
+        .metal {
+            background: #F0E5FF;
+            border-color: #8B44FF;
+            color: #4B0080;
+        }
+
+        .semimetal {
+            background: #E5F5E5;
+            border-color: #44AA44;
+            color: #004400;
+        }
+
+        .nonmetal {
+            background: #FFFAE5;
+            border-color: #CC9900;
+            color: #664400;
+        }
+
+        .halogen {
+            background: #E5FFFF;
+            border-color: #00AA99;
+            color: #004455;
+        }
+
+        .noble {
+            background: #F0F0F0;
+            border-color: #666666;
+            color: #333333;
+        }
+
+        .actinide {
+            background: #FFE5F0;
+            border-color: #FF44AA;
+            color: #880055;
+        }
+
+        .detail-panel {
+            background: white;
+            border-radius: 12px;
+            padding: 2rem;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+            display: none;
+        }
+
+        .detail-panel.active {
+            display: block;
+            animation: slideUp 0.3s ease;
+        }
+
+        @keyframes slideUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .detail-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 1.5rem;
+            border-bottom: 2px solid #f0f0f0;
+            padding-bottom: 1rem;
+        }
+
+        .detail-title {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .detail-symbol {
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+        }
+
+        .detail-name {
+            font-size: 1.25rem;
+            color: #666;
+            margin-bottom: 0.5rem;
+        }
+
+        .close-btn {
+            background: none;
+            border: 1px solid #ccc;
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 1rem;
+            transition: all 0.2s;
+        }
+
+        .close-btn:hover {
+            background: #f5f5f5;
+            border-color: #999;
+        }
+
+        .detail-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1.5rem;
+        }
+
+        .detail-item {
+            background: #f9f9f9;
+            padding: 1rem;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+        }
+
+        .detail-label {
+            font-size: 0.85rem;
+            color: #999;
+            text-transform: uppercase;
+            margin-bottom: 0.5rem;
+        }
+
+        .detail-value {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #333;
+        }
+
+        .detail-item.full {
+            grid-column: 1 / -1;
+        }
+
+        .detail-label {
+            font-size: 0.85rem;
+            color: #999;
+            text-transform: uppercase;
+            margin-bottom: 0.5rem;
+            letter-spacing: 0.5px;
+            font-weight: 600;
+        }
+
+        .no-results {
+            text-align: center;
+            padding: 2rem;
+            color: white;
+            font-size: 1.1rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔬 인터랙티브 주기율표</h1>
+            <p>원소를 클릭하여 상세 정보를 확인하세요</p>
+        </div>
+
+        <div class="controls">
+            <div class="search-wrapper">
+                <input 
+                    type="text" 
+                    id="searchInput" 
+                    class="search-box" 
+                    placeholder="원소 검색 (기호, 이름, 원자번호)..."
+                    autocomplete="off"
+                    role="combobox"
+                    aria-autocomplete="list"
+                    aria-expanded="false"
+                    aria-controls="suggestions"
+                >
+                <button type="button" id="searchClear" class="search-clear-btn" aria-label="검색어 지우기">✕</button>
+                <div id="suggestions" class="suggestions" role="listbox" aria-label="원소 검색 결과"></div>
+            </div>
+            <div class="search-hint">💡 입력하면 실시간으로 후보가 표시됩니다 · ↑↓ 이동 · Enter 선택 · ESC 초기화</div>
+
+            <div class="controls-section">
+                <div class="section-title">📌 원소 분류별 필터</div>
+                <div class="filter-buttons" id="filterButtons"></div>
+                <div style="display: flex; gap: 0.75rem; margin-top: 0.75rem;">
+                    <button class="action-btn" onclick="resetFilters()" style="background: #888;">
+                        🔄 필터 초기화
+                    </button>
+                </div>
+            </div>
+
+            <div class="controls-section">
+                <div class="section-title">⬇️ 다운로드</div>
+                <div class="action-buttons">
+                    <button class="action-btn" onclick="downloadAsImage('png')">
+                        📥 PNG 다운로드
+                    </button>
+                    <button class="action-btn" onclick="downloadAsImage('jpg')">
+                        📥 JPG 다운로드
+                    </button>
+                </div>
+            </div>
+
+            <div class="legend">
+                <div class="legend-item">
+                    <div class="legend-color alkali"></div>
+                    <span>알칼리 금속</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color alkaline"></div>
+                    <span>알칼리 토금속</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color transition"></div>
+                    <span>전이금속</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color metal"></div>
+                    <span>금속</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color semimetal"></div>
+                    <span>반금속</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color nonmetal"></div>
+                    <span>비금속</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color halogen"></div>
+                    <span>할로겐</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color noble"></div>
+                    <span>희가스</span>
+                </div>
+            </div>
+        </div>
+
+        <div id="periodicGrid" class="periodic-grid"></div>
+
+        <div id="detailPanel" class="detail-panel">
+            <div class="detail-header">
+                <div class="detail-title">
+                    <div class="detail-symbol" id="detailSymbol"></div>
+                    <div class="detail-name" id="detailName"></div>
+                </div>
+                <button class="close-btn" onclick="closeDetail()">닫기</button>
+            </div>
+
+            <!-- 기본 정보 -->
+            <div class="detail-grid">
+                <div class="detail-item">
+                    <div class="detail-label">원자번호</div>
+                    <div class="detail-value" id="detailNumber"></div>
+                </div>
+                <div class="detail-item">
+                    <div class="detail-label">원자량</div>
+                    <div class="detail-value" id="detailMass"></div>
+                </div>
+                <div class="detail-item">
+                    <div class="detail-label">주기</div>
+                    <div class="detail-value" id="detailPeriod"></div>
+                </div>
+                <div class="detail-item">
+                    <div class="detail-label">족</div>
+                    <div class="detail-value" id="detailGroup"></div>
+                </div>
+                <div class="detail-item full">
+                    <div class="detail-label">분류</div>
+                    <div class="detail-value" id="detailCategory"></div>
+                </div>
+            </div>
+
+            <hr style="border: none; border-top: 2px solid #f0f0f0; margin: 1.5rem 0;">
+
+            <!-- 원자/분자 구조 -->
+            <div style="margin-bottom: 1.5rem;">
+                <div class="detail-label" style="margin-bottom: 1rem;">⚛️ 원자/분자 구조</div>
+                <div style="background: #f9f9f9; padding: 1rem; border-radius: 8px; border-left: 4px solid #667eea;">
+                    <div id="detailStructure" style="font-size: 0.95rem; color: #333; line-height: 1.6;"></div>
+                </div>
+                <div id="structureVisualization" style="margin-top: 1rem;"></div>
+            </div>
+
+            <!-- 생활 속 물질 -->
+            <div style="margin-bottom: 1.5rem;">
+                <div class="detail-label" style="margin-bottom: 1rem;">🏠 생활 속 물질</div>
+                <div id="detailUses" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.75rem;"></div>
+            </div>
+
+            <!-- 위키피디아 링크 -->
+            <div style="margin-top: 1.5rem;">
+                <a id="wikiLink" href="#" target="_blank" style="
+                    display: inline-block;
+                    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                    color: white;
+                    padding: 0.75rem 1.5rem;
+                    border-radius: 6px;
+                    text-decoration: none;
+                    font-weight: 600;
+                    transition: all 0.2s;
+                ">
+                    📖 위키피디아에서 더 알아보기
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const elements = [
+            // Period 1
+            { number: 1, symbol: 'H', name: '수소', mass: 1.008, category: 'nonmetal', period: 1, group: 1, 
+              uses: ['물', '메탄', '암모니아', '연료전지', '수소자동차'], 
+              structure: '1개의 양성자와 1개의 전자로 이루어진 가장 간단한 원소',
+              wiki: '수소' },
+            { number: 2, symbol: 'He', name: '헬륨', mass: 4.003, category: 'noble', period: 1, group: 18,
+              uses: ['풍선', '심해잠수 장비', '핵융합 연구', '냉각제'],
+              structure: '2개의 양성자와 2개의 전자로 가장 안정적인 희가스',
+              wiki: '헬륨' },
+            // Period 2
+            { number: 3, symbol: 'Li', name: '리튬', mass: 6.941, category: 'alkali', period: 2, group: 1,
+              uses: ['배터리', '정신과 치료약', '강화유리', '청소용품'],
+              structure: '금속 결정 구조 (BCC 격자)',
+              wiki: '리튬' },
+            { number: 4, symbol: 'Be', name: '베릴륨', mass: 9.012, category: 'alkaline', period: 2, group: 2,
+              uses: ['항공기 부품', '의료 기기', 'X선 투시 기계', '우주 탐사'],
+              structure: '육각정 결정 구조',
+              wiki: '베릴륨' },
+            { number: 5, symbol: 'B', name: '붕소', mass: 10.81, category: 'semimetal', period: 2, group: 13,
+              uses: ['강화유리', '세제', '농약', '반도체 도핑제'],
+              structure: '다양한 결정 형태 (흑색 붕소, 무정형)' ,
+              wiki: '붕소' },
+            { number: 6, symbol: 'C', name: '탄소', mass: 12.01, category: 'nonmetal', period: 2, group: 14,
+              uses: ['다이아몬드', '그래핀', '활성탄', '스테인리스강', '연필'],
+              structure: '정사면체 및 육각형 격자 구조 (sp³, sp² 혼성)',
+              wiki: '탄소' },
+            { number: 7, symbol: 'N', name: '질소', mass: 14.01, category: 'nonmetal', period: 2, group: 15,
+              uses: ['비료', '액체질소', '폭약', '의약품'],
+              structure: 'N≡N 삼중결합 분자',
+              wiki: '질소' },
+            { number: 8, symbol: 'O', name: '산소', mass: 16.00, category: 'nonmetal', period: 2, group: 16,
+              uses: ['물', '산소호흡', '의료용산소', '연소'],
+              structure: 'O=O 이중결합 분자',
+              wiki: '산소' },
+            { number: 9, symbol: 'F', name: '플루오린', mass: 19.00, category: 'halogen', period: 2, group: 17,
+              uses: ['치약', '불소 도료', '냉매', '우라늄 농축'],
+              structure: 'F-F 단일결합 분자 (가장 강력한 산화제)',
+              wiki: '플루오린' },
+            { number: 10, symbol: 'Ne', name: '네온', mass: 20.18, category: 'noble', period: 2, group: 18,
+              uses: ['네온등', '냉각제', '광고 간판', '레이저'],
+              structure: '안정적인 완전한 전자껍질 구조',
+              wiki: '네온' },
+            // Period 3
+            { number: 11, symbol: 'Na', name: '나트륨', mass: 22.99, category: 'alkali', period: 3, group: 1,
+              uses: ['소금', '세제', '화학공업', '가로등(나트륨 등)'],
+              structure: '체심 정육면체 (BCC) 결정 구조',
+              wiki: '나트륨' },
+            { number: 12, symbol: 'Mg', name: '마그네슘', mass: 24.30, category: 'alkaline', period: 3, group: 2,
+              uses: ['마그네슘 사료첨가제', '알루미늄 합금', '의료용 약물', '건축 재료'],
+              structure: '육각 밀집 구조 (HCP)',
+              wiki: '마그네슘' },
+            { number: 13, symbol: 'Al', name: '알루미늄', mass: 26.98, category: 'metal', period: 3, group: 13,
+              uses: ['알루미늄 호일', '음료 캔', '건축 자재', '비행기 부품'],
+              structure: '면심 정육면체 (FCC) 결정 구조',
+              wiki: '알루미늄' },
+            { number: 14, symbol: 'Si', name: '규소', mass: 28.09, category: 'semimetal', period: 3, group: 14,
+              uses: ['반도체 칩', '태양전지', '유리', '시멘트'],
+              structure: '다이아몬드 입방 구조 (sp³ 혼성)',
+              wiki: '규소' },
+            { number: 15, symbol: 'P', name: '인', mass: 30.97, category: 'nonmetal', period: 3, group: 15,
+              uses: ['비료', '성냥', '의약품', 'DNA/RNA'],
+              structure: 'P₄ 정사면체 분자 또는 다양한 동소체',
+              wiki: '인' },
+            { number: 16, symbol: 'S', name: '황', mass: 32.06, category: 'nonmetal', period: 3, group: 16,
+              uses: ['배터리', '타이어', '의약품', '화약'],
+              structure: 'S₈ 고리 분자 구조 (orthorhombic)',
+              wiki: '황' },
+            { number: 17, symbol: 'Cl', name: '염소', mass: 35.45, category: 'halogen', period: 3, group: 17,
+              uses: ['수돗물 소독', '염산', '의약품', 'PVC 플라스틱'],
+              structure: 'Cl-Cl 단일결합 분자',
+              wiki: '염소' },
+            { number: 18, symbol: 'Ar', name: '아르곤', mass: 39.95, category: 'noble', period: 3, group: 18,
+              uses: ['전구', '용접 가스', '화학기기 충전', '냉각'],
+              structure: '완전한 전자껍질 구조 (비활성)',
+              wiki: '아르곤' },
+            // Period 4
+            { number: 19, symbol: 'K', name: '칼륨', mass: 39.10, category: 'alkali', period: 4, group: 1,
+              uses: ['비료', '의료용', '화염 분석', '폭발물'],
+              structure: '체심 정육면체 (BCC) 결정 구조',
+              wiki: '칼륨' },
+            { number: 20, symbol: 'Ca', name: '칼슘', mass: 40.08, category: 'alkaline', period: 4, group: 2,
+              uses: ['우유', '뼈', '건축재료', '비료'],
+              structure: '면심 정육면체 (FCC) 결정 구조',
+              wiki: '칼슘' },
+            { number: 21, symbol: 'Sc', name: '스칸듐', mass: 44.96, category: 'transition', period: 4, group: 3,
+              uses: ['항공기 합금', '스포츠 용품', '의료기기', '레이저'],
+              structure: '육각 밀집 구조 (HCP)',
+              wiki: '스칸듐' },
+            { number: 22, symbol: 'Ti', name: '타이타늄', mass: 47.87, category: 'transition', period: 4, group: 4,
+              uses: ['항공기 부품', '의료용 임플란트', '스포츠용품', '페인트'],
+              structure: '육각 밀집 구조 (HCP)',
+              wiki: '타이타늄' },
+            { number: 23, symbol: 'V', name: '바나듐', mass: 50.94, category: 'transition', period: 4, group: 5,
+              uses: ['강철 합금', '배터리', '촉매', '색소'],
+              structure: '체심 정육면체 (BCC) 결정 구조',
+              wiki: '바나듐' },
+            { number: 24, symbol: 'Cr', name: '크로뮴', mass: 51.99, category: 'transition', period: 4, group: 6,
+              uses: ['스테인리스강', '도금', '색소', '가죽 제조'],
+              structure: '체심 정육면체 (BCC) 결정 구조',
+              wiki: '크로뮴' },
+            { number: 25, symbol: 'Mn', name: '망간', mass: 54.94, category: 'transition', period: 4, group: 7,
+              uses: ['스테인리스강', '배터리', '비료', '의약품'],
+              structure: '복잡한 입방 구조',
+              wiki: '망간' },
+            { number: 26, symbol: 'Fe', name: '철', mass: 55.85, category: 'transition', period: 4, group: 8,
+              uses: ['철강', '자석', '혈액', '건축재료', '자동차'],
+              structure: '체심 정육면체 (BCC) 및 면심 정육면체 (FCC)',
+              wiki: '철' },
+            { number: 27, symbol: 'Co', name: '코발트', mass: 58.93, category: 'transition', period: 4, group: 9,
+              uses: ['배터리', '자석', '색소', '촉매'],
+              structure: '육각 밀집 구조 (HCP)',
+              wiki: '코발트' },
+            { number: 28, symbol: 'Ni', name: '니켈', mass: 58.69, category: 'transition', period: 4, group: 10,
+              uses: ['동전', '도금', '합금', '배터리'],
+              structure: '면심 정육면체 (FCC) 결정 구조',
+              wiki: '니켈' },
+            { number: 29, symbol: 'Cu', name: '구리', mass: 63.55, category: 'transition', period: 4, group: 11,
+              uses: ['전선', '동전', '파이프', '펑크션', '살균제'],
+              structure: '면심 정육면체 (FCC) 결정 구조',
+              wiki: '구리' },
+            { number: 30, symbol: 'Zn', name: '아연', mass: 65.38, category: 'transition', period: 4, group: 12,
+              uses: ['도금', '동전', '건전지', '의약품'],
+              structure: '육각 밀집 구조 (HCP)',
+              wiki: '아연' },
+            { number: 31, symbol: 'Ga', name: '갈륨', mass: 69.72, category: 'metal', period: 4, group: 13,
+              uses: ['반도체', 'LED', '태양전지', '적외선'],
+              structure: '정사면체 공유결합 구조',
+              wiki: '갈륨' },
+            { number: 32, symbol: 'Ge', name: '저마늄', mass: 72.63, category: 'semimetal', period: 4, group: 14,
+              uses: ['반도체', '광섬유', '카메라 렌즈', '태양전지'],
+              structure: '다이아몬드 입방 구조 (sp³ 혼성)',
+              wiki: '저마늄' },
+            { number: 33, symbol: 'As', name: '비소', mass: 74.92, category: 'semimetal', period: 4, group: 15,
+              uses: ['반도체', '제초제', '포장재', '의약품'],
+              structure: '층상 구조 (Rhombohedral)',
+              wiki: '비소' },
+            { number: 34, symbol: 'Se', name: '셀레늄', mass: 78.96, category: 'nonmetal', period: 4, group: 16,
+              uses: ['태양전지', '유리', '카메라', '의약품'],
+              structure: '체인 구조 또는 8원 고리 구조',
+              wiki: '셀레늄' },
+            { number: 35, symbol: 'Br', name: '브로민', mass: 79.90, category: 'halogen', period: 4, group: 17,
+              uses: ['의약품', '사진필름', '난연제', '화학약품'],
+              structure: 'Br-Br 이원자 분자',
+              wiki: '브로민' },
+            { number: 36, symbol: 'Kr', name: '크립톤', mass: 83.80, category: 'noble', period: 4, group: 18,
+              uses: ['전구', '윈도우 단열재', '레이저', '카메라 플래시'],
+              structure: '완전한 전자껍질 구조',
+              wiki: '크립톤' },
+            // 추가 원소들
+            { number: 47, symbol: 'Ag', name: '은', mass: 107.87, category: 'transition', period: 5, group: 11,
+              uses: ['보석', '동전', '카메라 필름', '의료용품', '식기'],
+              structure: '면심 정육면체 (FCC) 결정 구조',
+              wiki: '은' },
+            { number: 50, symbol: 'Sn', name: '주석', mass: 118.71, category: 'metal', period: 5, group: 14,
+              uses: ['납땜', '통조림 캔', '청동', '합금'],
+              structure: '체심 정육면체 (β-Sn) 또는 다이아몬드형 (α-Sn)',
+              wiki: '주석' },
+            { number: 53, symbol: 'I', name: '요오드', mass: 126.90, category: 'halogen', period: 5, group: 17,
+              uses: ['소금', '의약품', '소독제', '조영제'],
+              structure: 'I₂ 이원자 분자',
+              wiki: '요오드' },
+            { number: 54, symbol: 'Xe', name: '크세논', mass: 131.29, category: 'noble', period: 5, group: 18,
+              uses: ['의료용 마취제', 'HID 전구', '깊은 바다 탐사', 'PET 촬영'],
+              structure: '완전한 전자껍질 구조',
+              wiki: '크세논' },
+            { number: 79, symbol: 'Au', name: '금', mass: 196.97, category: 'transition', period: 6, group: 11,
+              uses: ['보석', '동전', '전자회로', '치과임플란트'],
+              structure: '면심 정육면체 (FCC) 결정 구조',
+              wiki: '금' },
+            { number: 80, symbol: 'Hg', name: '수은', mass: 200.59, category: 'transition', period: 6, group: 12,
+              uses: ['온도계', '형광등', '치과 아말감', '화학제품'],
+              structure: '경계 층상 구조 (액체)',
+              wiki: '수은' },
+            { number: 82, symbol: 'Pb', name: '납', mass: 207.20, category: 'metal', period: 6, group: 14,
+              uses: ['배터리', '차폐재', '파이프', '도자기'],
+              structure: '면심 정육면체 (FCC) 결정 구조',
+              wiki: '납' },
+            { number: 92, symbol: 'U', name: '우라늄', mass: 238.03, category: 'actinide', period: 7, group: 3,
+              uses: ['원자력 연료', '방사능 추적', '밀도 높은 탄약', '색유리'],
+              structure: '복잡한 정사각 구조',
+              wiki: '우라늄' },
+        ];
+
+        const categoryLabels = {
+            alkali: '알칼리 금속',
+            alkaline: '알칼리 토금속',
+            transition: '전이금속',
+            metal: '금속',
+            semimetal: '반금속',
+            nonmetal: '비금속',
+            halogen: '할로겐',
+            noble: '희가스',
+            actinide: '악티늄족',
+        };
+
+        const categoryColors = {
+            alkali: { bg: '#FFE5E5', border: '#FF6B6B' },
+            alkaline: { bg: '#FFE5CC', border: '#FF9500' },
+            transition: { bg: '#E5F0FF', border: '#3366FF' },
+            metal: { bg: '#F0E5FF', border: '#8B44FF' },
+            semimetal: { bg: '#E5F5E5', border: '#44AA44' },
+            nonmetal: { bg: '#FFFAE5', border: '#CC9900' },
+            halogen: { bg: '#E5FFFF', border: '#00AA99' },
+            noble: { bg: '#F0F0F0', border: '#666666' },
+            actinide: { bg: '#FFE5F0', border: '#FF44AA' },
+        };
+
+        let selectedElement = null;
+        let filteredElements = [...elements];
+        let activeFilters = new Set();
+
+        function initializeFilters() {
+            const filterContainer = document.getElementById('filterButtons');
+            Object.entries(categoryLabels).forEach(([key, label]) => {
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'filter-btn';
+                btn.textContent = label;
+                // 색상은 CSS 변수로만 주입 → 인라인 color/background 지정 없음
+                btn.style.setProperty('--cat-color', categoryColors[key].border);
+                btn.dataset.category = key;
+                btn.setAttribute('aria-pressed', 'false');
+                btn.addEventListener('click', () => toggleFilter(key, btn));
+                filterContainer.appendChild(btn);
+            });
+        }
+
+        function toggleFilter(category, btn) {
+            // 'inactive' 클래스를 쓰지 않으므로 해제 시 기본 상태로 완전히 복귀
+            if (activeFilters.has(category)) {
+                activeFilters.delete(category);
+                btn.classList.remove('active');
+                btn.setAttribute('aria-pressed', 'false');
+            } else {
+                activeFilters.add(category);
+                btn.classList.add('active');
+                btn.setAttribute('aria-pressed', 'true');
+            }
+            btn.blur(); // 클릭 후 포커스 잔상 제거
+            applyFilters();
+        }
+
+        function resetFilters() {
+            activeFilters.clear();
+            document.querySelectorAll('.filter-btn').forEach(btn => {
+                btn.classList.remove('active');
+                btn.setAttribute('aria-pressed', 'false');
+            });
+            applyFilters();
+        }
+
+        function applyFilters() {
+            const searchQuery = document.getElementById('searchInput').value.toLowerCase();
+            
+            filteredElements = elements.filter(el => {
+                // 검색 필터
+                const matchesSearch = 
+                    el.symbol.toLowerCase().includes(searchQuery) ||
+                    el.name.toLowerCase().includes(searchQuery) ||
+                    el.number.toString().includes(searchQuery);
+
+                // 카테고리 필터
+                const matchesCategory = activeFilters.size === 0 || activeFilters.has(el.category);
+
+                return matchesSearch && matchesCategory;
+            });
+
+            // 조회 조건이 바뀌면 이전 선택은 무효 → 하단 상세 정보 창 초기화
+            closeDetail();
+
+            renderGrid();
+        }
+
+        function renderGrid() {
+            const grid = document.getElementById('periodicGrid');
+            grid.innerHTML = '';
+
+            if (filteredElements.length === 0) {
+                grid.innerHTML = '<div class="no-results">검색 결과가 없습니다.</div>';
+                return;
+            }
+
+            filteredElements.forEach(element => {
+                const el = document.createElement('div');
+                el.className = `element ${element.category}`;
+                // 선택 강조(링·배지)에 사용할 분류 대표색
+                el.style.setProperty('--el-color', categoryColors[element.category].border);
+                el.innerHTML = `
+                    <div class="element-number">${element.number}</div>
+                    <div class="element-symbol">${element.symbol}</div>
+                    <div class="element-name">${element.name}</div>
+                `;
+                el.addEventListener('click', () => selectElement(element, el));
+                grid.appendChild(el);
+            });
+        }
+
+        function selectElement(element, el) {
+            selectedElement = element;
+            
+            document.querySelectorAll('.element').forEach(elem => {
+                elem.classList.remove('selected');
+            });
+            
+            el.classList.add('selected');
+
+            // 그리드 전체에 '선택됨' 상태를 알려 미선택 원소를 흐리게 처리
+            document.getElementById('periodicGrid').classList.add('has-selection');
+
+            // 기본 정보
+            document.getElementById('detailSymbol').textContent = element.symbol;
+            document.getElementById('detailName').textContent = element.name;
+            document.getElementById('detailNumber').textContent = element.number;
+            document.getElementById('detailMass').textContent = element.mass.toFixed(3);
+            document.getElementById('detailPeriod').textContent = element.period;
+            document.getElementById('detailGroup').textContent = element.group;
+            document.getElementById('detailCategory').textContent = categoryLabels[element.category];
+
+            // 원자/분자 구조
+            document.getElementById('detailStructure').textContent = element.structure;
+            
+            // 분자 구조 시각화
+            const structureViz = document.getElementById('structureVisualization');
+            structureViz.innerHTML = createStructureVisualization(element);
+
+            // 생활 속 물질
+            const usesList = document.getElementById('detailUses');
+            usesList.innerHTML = element.uses.map(use => `
+                <div style="
+                    background: var(--color-background-secondary, #f5f5f5);
+                    padding: 0.75rem;
+                    border-radius: 6px;
+                    border-left: 3px solid #667eea;
+                    font-size: 0.9rem;
+                    color: #333;
+                    font-weight: 500;
+                ">
+                    ✓ ${use}
+                </div>
+            `).join('');
+
+            // 위키피디아 링크
+            document.getElementById('wikiLink').href = `https://ko.wikipedia.org/wiki/${element.wiki}`;
+
+            document.getElementById('detailPanel').classList.add('active');
+            document.getElementById('detailPanel').scrollIntoView({ behavior: 'smooth', block: 'end' });
+        }
+
+        function createStructureVisualization(element) {
+            // 간단한 SVG로 원자 구조 시각화
+            const structures = {
+                'H': '<svg viewBox="0 0 100 100" style="width:100px; height:100px;"><circle cx="50" cy="50" r="15" fill="#FFD700" stroke="#333" stroke-width="2"/><text x="50" y="58" text-anchor="middle" font-size="24" font-weight="bold" fill="#333">H</text></svg>',
+                'He': '<svg viewBox="0 0 100 100" style="width:100px; height:100px;"><circle cx="50" cy="50" r="18" fill="#FFB6C1" stroke="#333" stroke-width="2"/><text x="50" y="58" text-anchor="middle" font-size="20" font-weight="bold" fill="#333">He</text></svg>',
+                'Li': '<svg viewBox="0 0 100 100" style="width:100px; height:100px;"><circle cx="50" cy="50" r="20" fill="#FF6B6B" stroke="#333" stroke-width="2"/><text x="50" y="60" text-anchor="middle" font-size="20" font-weight="bold" fill="white">Li</text></svg>',
+                'C': '<svg viewBox="0 0 100 100" style="width:100px; height:100px;"><circle cx="50" cy="50" r="18" fill="#2C2C2C" stroke="#333" stroke-width="2"/><circle cx="35" cy="35" r="6" fill="#FFD700"/><circle cx="65" cy="35" r="6" fill="#FFD700"/><circle cx="35" cy="65" r="6" fill="#FFD700"/><circle cx="65" cy="65" r="6" fill="#FFD700"/><text x="50" y="58" text-anchor="middle" font-size="18" font-weight="bold" fill="white">C</text></svg>',
+                'N': '<svg viewBox="0 0 100 100" style="width:100px; height:100px;"><circle cx="25" cy="50" r="12" fill="#FFD700" stroke="#333" stroke-width="2"/><circle cx="75" cy="50" r="12" fill="#FFD700" stroke="#333" stroke-width="2"/><line x1="37" y1="50" x2="63" y2="50" stroke="#333" stroke-width="3"/><line x1="39" y1="46" x2="61" y2="54" stroke="#333" stroke-width="2"/><line x1="39" y1="54" x2="61" y2="46" stroke="#333" stroke-width="2"/><text x="50" y="75" text-anchor="middle" font-size="12" fill="#333">N≡N</text></svg>',
+                'O': '<svg viewBox="0 0 100 100" style="width:100px; height:100px;"><circle cx="25" cy="50" r="12" fill="#FFD700" stroke="#333" stroke-width="2"/><circle cx="75" cy="50" r="12" fill="#FFD700" stroke="#333" stroke-width="2"/><line x1="37" y1="50" x2="63" y2="50" stroke="#333" stroke-width="4"/><line x1="40" y1="44" x2="60" y2="56" stroke="#333" stroke-width="2"/><text x="50" y="75" text-anchor="middle" font-size="12" fill="#333">O=O</text></svg>',
+                'Fe': '<svg viewBox="0 0 100 100" style="width:100px; height:100px;"><defs><pattern id="lattice" x="0" y="0" width="20" height="20" patternUnits="userSpaceOnUse"><circle cx="10" cy="10" r="6" fill="#E8861F" stroke="#333" stroke-width="1"/><line x1="10" y1="4" x2="10" y2="16" stroke="#999" stroke-width="0.5"/><line x1="4" y1="10" x2="16" y2="10" stroke="#999" stroke-width="0.5"/></pattern></defs><rect x="20" y="20" width="60" height="60" fill="url(#lattice)" stroke="#333" stroke-width="2"/><text x="50" y="75" text-anchor="middle" font-size="12" fill="#333">BCC 구조</text></svg>',
+                'Cu': '<svg viewBox="0 0 100 100" style="width:100px; height:100px;"><circle cx="50" cy="50" r="20" fill="#B87333" stroke="#333" stroke-width="2"/><circle cx="35" cy="35" r="5" fill="#FFD700" opacity="0.6"/><circle cx="65" cy="35" r="5" fill="#FFD700" opacity="0.6"/><circle cx="35" cy="65" r="5" fill="#FFD700" opacity="0.6"/><circle cx="65" cy="65" r="5" fill="#FFD700" opacity="0.6"/><circle cx="50" cy="50" r="5" fill="#FFD700" opacity="0.6"/><text x="50" y="85" text-anchor="middle" font-size="12" fill="#333">FCC 구조</text></svg>',
+            };
+            
+            if (structures[element.symbol]) {
+                return structures[element.symbol];
+            }
+            
+            // 기본 원자 표현
+            const color = categoryColors[element.category].bg;
+            const borderColor = categoryColors[element.category].border;
+            return `<svg viewBox="0 0 100 100" style="width:100px; height:100px;"><circle cx="50" cy="50" r="18" fill="${color}" stroke="${borderColor}" stroke-width="2"/><text x="50" y="58" text-anchor="middle" font-size="18" font-weight="bold" fill="${borderColor}">${element.symbol}</text></svg>`;
+        }
+
+        function closeDetail() {
+            const panel = document.getElementById('detailPanel');
+            panel.classList.remove('active');
+
+            document.querySelectorAll('.element').forEach(el => {
+                el.classList.remove('selected');
+            });
+
+            // 미선택 원소 디밍 해제
+            const grid = document.getElementById('periodicGrid');
+            if (grid) grid.classList.remove('has-selection');
+
+            // 이전 원소의 잔여 데이터 제거 (다음 조회 시 잠깐 비치는 현상 방지)
+            ['detailSymbol', 'detailName', 'detailNumber', 'detailMass',
+             'detailPeriod', 'detailGroup', 'detailCategory', 'detailStructure'
+            ].forEach(id => {
+                const node = document.getElementById(id);
+                if (node) node.textContent = '';
+            });
+
+            const viz = document.getElementById('structureVisualization');
+            if (viz) viz.innerHTML = '';
+
+            const uses = document.getElementById('detailUses');
+            if (uses) uses.innerHTML = '';
+
+            const wiki = document.getElementById('wikiLink');
+            if (wiki) wiki.href = '#';
+
+            selectedElement = null;
+        }
+
+        /* =========================================================
+           이미지 다운로드
+           - 현재 필터/검색 결과 그리드 + 범례
+           - 원소가 선택되어 있으면 하단 상세 정보 창까지 함께 캡처
+           ========================================================= */
+        function loadHtml2Canvas() {
+            if (window.html2canvas) return Promise.resolve(window.html2canvas);
+            if (window.__h2cPromise) return window.__h2cPromise;
+
+            window.__h2cPromise = new Promise((resolve, reject) => {
+                const script = document.createElement('script');
+                script.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+                script.onload = () => resolve(window.html2canvas);
+                script.onerror = () => reject(new Error('html2canvas 로드 실패'));
+                document.head.appendChild(script);
+            });
+            return window.__h2cPromise;
+        }
+
+        function buildLegend() {
+            const legendDiv = document.createElement('div');
+            legendDiv.style.display = 'grid';
+            legendDiv.style.gridTemplateColumns = 'repeat(5, 1fr)';
+            legendDiv.style.gap = '0.75rem';
+            legendDiv.style.marginBottom = '1.5rem';
+            legendDiv.style.fontSize = '12px';
+
+            Object.entries(categoryLabels).forEach(([key, label]) => {
+                const item = document.createElement('div');
+                item.style.display = 'flex';
+                item.style.alignItems = 'center';
+                item.style.gap = '0.5rem';
+
+                const colorBox = document.createElement('div');
+                colorBox.style.width = '18px';
+                colorBox.style.height = '18px';
+                colorBox.style.backgroundColor = categoryColors[key].bg;
+                colorBox.style.border = `2px solid ${categoryColors[key].border}`;
+                colorBox.style.borderRadius = '4px';
+                colorBox.style.flexShrink = '0';
+
+                const labelEl = document.createElement('span');
+                labelEl.textContent = label;
+                labelEl.style.color = '#333';
+
+                item.appendChild(colorBox);
+                item.appendChild(labelEl);
+                legendDiv.appendChild(item);
+            });
+
+            return legendDiv;
+        }
+
+        /* 상세 정보 패널을 캡처용으로 정리해서 복제 */
+        function buildDetailClone() {
+            const panel = document.getElementById('detailPanel');
+            if (!selectedElement || !panel.classList.contains('active')) return null;
+
+            const clone = panel.cloneNode(true);
+
+            // 캡처본에서는 화면 전용 요소를 정리
+            clone.style.display = 'block';
+            clone.style.marginTop = '2rem';
+            clone.style.boxShadow = 'none';
+            clone.style.border = '2px solid #e0e0e0';
+            clone.style.animation = 'none';
+
+            const closeBtn = clone.querySelector('.close-btn');
+            if (closeBtn) closeBtn.remove();
+
+            // 위키 링크 버튼 → 실제 주소가 보이는 텍스트로 치환
+            const wiki = clone.querySelector('#wikiLink');
+            if (wiki) {
+                const note = document.createElement('div');
+                note.style.marginTop = '0.5rem';
+                note.style.fontSize = '0.85rem';
+                note.style.color = '#555';
+                note.textContent =
+                    `📖 위키피디아: https://ko.wikipedia.org/wiki/${selectedElement.wiki}`;
+                wiki.parentNode.replaceChild(note, wiki);
+            }
+
+            // id 중복을 피하기 위해 복제본의 id 제거
+            clone.removeAttribute('id');
+            clone.querySelectorAll('[id]').forEach(node => node.removeAttribute('id'));
+
+            return clone;
+        }
+
+        function downloadAsImage(format) {
+            const gridContainer = document.getElementById('periodicGrid');
+
+            const tempContainer = document.createElement('div');
+            tempContainer.style.position = 'absolute';
+            tempContainer.style.left = '-9999px';
+            tempContainer.style.top = '0';
+            tempContainer.style.background = '#ffffff';
+            tempContainer.style.padding = '2rem';
+            tempContainer.style.width = '1200px';
+            tempContainer.style.boxSizing = 'border-box';
+            tempContainer.style.fontFamily =
+                '-apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", sans-serif';
+
+            // 제목
+            const title = document.createElement('div');
+            title.style.textAlign = 'center';
+            title.style.marginBottom = '1.5rem';
+            title.innerHTML = `
+                <h1 style="font-size:2rem; color:#333; margin-bottom:0.4rem;">
+                    🔬 인터랙티브 주기율표
+                </h1>
+                <p style="font-size:0.9rem; color:#777;">
+                    표시된 원소 ${filteredElements.length}개${
+                        activeFilters.size > 0
+                            ? ' · 필터: ' + [...activeFilters].map(k => categoryLabels[k]).join(', ')
+                            : ''
+                    }
+                </p>
+            `;
+            tempContainer.appendChild(title);
+
+            // 범례
+            tempContainer.appendChild(buildLegend());
+
+            // 주기율표 그리드
+            const gridClone = gridContainer.cloneNode(true);
+            gridClone.style.display = 'grid';
+            gridClone.style.gridTemplateColumns = 'repeat(auto-fill, minmax(65px, 1fr))';
+            gridClone.style.gap = '10px';
+            gridClone.removeAttribute('id');
+            // 인쇄물 가독성을 위해 디밍은 빼고, 선택 강조(링·배지)만 남김
+            gridClone.classList.remove('has-selection');
+            tempContainer.appendChild(gridClone);
+
+            // 선택된 원소의 상세 정보 창 (있을 때만)
+            const detailClone = buildDetailClone();
+            if (detailClone) tempContainer.appendChild(detailClone);
+
+            document.body.appendChild(tempContainer);
+
+            loadHtml2Canvas()
+                .then(h2c => h2c(tempContainer, {
+                    backgroundColor: '#ffffff',
+                    scale: 2,
+                    useCORS: true,
+                    logging: false,
+                    windowWidth: 1240
+                }))
+                .then(canvas => {
+                    const link = document.createElement('a');
+                    const timestamp = new Date().toISOString().slice(0, 10);
+                    const suffix = selectedElement ? `_${selectedElement.symbol}` : '';
+
+                    if (format === 'jpg') {
+                        link.href = canvas.toDataURL('image/jpeg', 0.95);
+                        link.download = `periodic_table${suffix}_${timestamp}.jpg`;
+                    } else {
+                        link.href = canvas.toDataURL('image/png');
+                        link.download = `periodic_table${suffix}_${timestamp}.png`;
+                    }
+
+                    link.click();
+                })
+                .catch(err => {
+                    console.error('이미지 생성 실패:', err);
+                    alert('이미지 생성에 실패했습니다. 네트워크 연결을 확인해 주세요.');
+                })
+                .finally(() => {
+                    if (tempContainer.parentNode) {
+                        document.body.removeChild(tempContainer);
+                    }
+                });
+        }
+
+        /* =========================================================
+           실시간 검색 (자동완성 드롭다운 + 키보드 조작 + ESC 초기화)
+           ========================================================= */
+        const searchInput = document.getElementById('searchInput');
+        const suggestionsBox = document.getElementById('suggestions');
+        const searchClearBtn = document.getElementById('searchClear');
+
+        let suggestionList = [];      // 현재 표시 중인 후보 원소 배열
+        let highlightedIndex = -1;    // 키보드로 선택 중인 항목 인덱스
+
+        function getSuggestions(query) {
+            const q = query.trim().toLowerCase();
+            if (!q) return [];
+
+            const pool = elements.filter(el =>
+                activeFilters.size === 0 || activeFilters.has(el.category)
+            );
+
+            // 앞부분 일치를 우선 노출하고, 그다음 부분 일치를 붙임
+            const startsWith = [];
+            const contains = [];
+
+            pool.forEach(el => {
+                const symbol = el.symbol.toLowerCase();
+                const name = el.name.toLowerCase();
+                const num = el.number.toString();
+
+                if (symbol.startsWith(q) || name.startsWith(q) || num.startsWith(q)) {
+                    startsWith.push(el);
+                } else if (symbol.includes(q) || name.includes(q) || num.includes(q)) {
+                    contains.push(el);
+                }
+            });
+
+            return [...startsWith, ...contains].slice(0, 8);
+        }
+
+        function renderSuggestions(query) {
+            suggestionList = getSuggestions(query);
+            highlightedIndex = -1;
+
+            if (!query.trim()) {
+                closeSuggestions();
+                return;
+            }
+
+            if (suggestionList.length === 0) {
+                suggestionsBox.innerHTML =
+                    '<div class="suggestion-empty">일치하는 원소가 없습니다</div>';
+                openSuggestions();
+                return;
+            }
+
+            suggestionsBox.innerHTML = suggestionList.map((el, i) => {
+                const c = categoryColors[el.category];
+                return `
+                    <div class="suggestion-item" role="option" data-index="${i}">
+                        <div class="suggestion-badge"
+                             style="background:${c.bg}; border-color:${c.border}; color:${c.border};">
+                            ${el.symbol}
+                        </div>
+                        <div class="suggestion-text">
+                            <span class="suggestion-name">${el.name}</span>
+                            <span class="suggestion-meta">
+                                원자번호 ${el.number} · ${categoryLabels[el.category]}
+                            </span>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            suggestionsBox.querySelectorAll('.suggestion-item').forEach(item => {
+                item.addEventListener('mousedown', (e) => {
+                    e.preventDefault(); // input blur 방지
+                    chooseSuggestion(Number(item.dataset.index));
+                });
+            });
+
+            openSuggestions();
+        }
+
+        function openSuggestions() {
+            suggestionsBox.classList.add('open');
+            searchInput.setAttribute('aria-expanded', 'true');
+        }
+
+        function closeSuggestions() {
+            suggestionsBox.classList.remove('open');
+            suggestionsBox.innerHTML = '';
+            searchInput.setAttribute('aria-expanded', 'false');
+            highlightedIndex = -1;
+        }
+
+        function updateHighlight() {
+            const items = suggestionsBox.querySelectorAll('.suggestion-item');
+            items.forEach((item, i) => {
+                item.classList.toggle('highlighted', i === highlightedIndex);
+                if (i === highlightedIndex) {
+                    item.scrollIntoView({ block: 'nearest' });
+                }
+            });
+        }
+
+        function chooseSuggestion(index) {
+            const element = suggestionList[index];
+            if (!element) return;
+
+            searchInput.value = element.name;
+            toggleClearButton();
+            closeSuggestions();
+            applyFilters();
+
+            // 그리드에서 해당 원소 카드를 찾아 상세 패널 열기
+            const cards = document.querySelectorAll('.element');
+            const targetIndex = filteredElements.findIndex(el => el.number === element.number);
+            if (targetIndex >= 0 && cards[targetIndex]) {
+                selectElement(element, cards[targetIndex]);
+            }
+        }
+
+        function toggleClearButton() {
+            searchClearBtn.classList.toggle('visible', searchInput.value.length > 0);
+        }
+
+        function clearSearch() {
+            searchInput.value = '';
+            toggleClearButton();
+            closeSuggestions();
+            applyFilters();
+        }
+
+        // 입력할 때마다 그리드와 후보 목록을 동시에 갱신
+        searchInput.addEventListener('input', () => {
+            toggleClearButton();
+            applyFilters();
+            renderSuggestions(searchInput.value);
+        });
+
+        // 키보드 조작: ↑ ↓ 이동, Enter 선택, ESC 초기화
+        searchInput.addEventListener('keydown', (e) => {
+            const isOpen = suggestionsBox.classList.contains('open');
+
+            if (e.key === 'Escape') {
+                e.preventDefault();
+                if (isOpen && searchInput.value) {
+                    // 1단계: 드롭다운만 닫기 → 2단계: 입력 초기화
+                    closeSuggestions();
+                } else {
+                    clearSearch();
+                }
+                return;
+            }
+
+            if (!isOpen || suggestionList.length === 0) return;
+
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                highlightedIndex = (highlightedIndex + 1) % suggestionList.length;
+                updateHighlight();
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                highlightedIndex =
+                    (highlightedIndex - 1 + suggestionList.length) % suggestionList.length;
+                updateHighlight();
+            } else if (e.key === 'Enter') {
+                e.preventDefault();
+                chooseSuggestion(highlightedIndex >= 0 ? highlightedIndex : 0);
+            }
+        });
+
+        // 포커스가 다시 들어오면 후보 재표시
+        searchInput.addEventListener('focus', () => {
+            if (searchInput.value.trim()) renderSuggestions(searchInput.value);
+        });
+
+        searchInput.addEventListener('blur', () => {
+            setTimeout(closeSuggestions, 120);
+        });
+
+        searchClearBtn.addEventListener('click', () => {
+            clearSearch();
+            searchInput.focus();
+        });
+
+        // 바깥 영역 클릭 시 드롭다운 닫기
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('.search-wrapper')) closeSuggestions();
+        });
+
+        // 페이지 어디서든 ESC를 누르면 검색 초기화
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && document.activeElement !== searchInput) {
+                if (searchInput.value) clearSearch();
+            }
+        });
+
+        // 초기 렌더링 및 필터 초기화
+        initializeFilters();
+        renderGrid();
+    </script>
+</body>
+</html>
